@@ -24,8 +24,8 @@ beta = 20.0 / np.pi
 gamma = 100
 R_halfpi = np.array([[np.cos(np.pi / 2.0), -np.sin(np.pi / 2.0)],
                      [np.sin(np.pi / 2.0), np.cos(np.pi / 2.0)]])
-num_obstacles = 5
-obstacles = np.random.random((num_obstacles, 2))*2 - 1
+num_obstacles = 1
+obstacles = [[0.5,0.01]]
 
 def avoid_obstacles(y, dy, goal):
     p = np.zeros(2)
@@ -66,6 +66,7 @@ y_track = np.zeros((dmp.timesteps, dmp.n_dmps))
 dy_track = np.zeros((dmp.timesteps, dmp.n_dmps))
 ddy_track = np.zeros((dmp.timesteps, dmp.n_dmps))
 goals = [[np.cos(theta), np.sin(theta)] for theta in np.linspace(0, 2*np.pi, 20)[:-1]]
+goals = goals[0:1] #just one for now
 for goal in goals:
     dmp.goal = goal
     dmp.reset_state()
