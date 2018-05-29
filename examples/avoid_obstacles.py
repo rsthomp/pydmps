@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
 import matplotlib.pyplot as plt
-
+import pdb
 import pydmps.dmp_discrete
 
 beta = 20.0 / np.pi
@@ -59,20 +59,34 @@ def avoid_obstacles(y, dy, goal):
             p += pval
     return p
 
+def get_straight_path(start, goal, timesteps, n_dmps, oscillate = False):
+    #constantly make progress to the goal, always move at that angle. 
+    dmp_paths = []
+    for i in range(n_dmps):
+        dmp_paths.append(np.linspace(start[i], goal[i], timesteps))
+    if oscillate:
+        A = 20
+        dmp_paths[1] = [dmp_paths[1][t] + A*np.sin(0.01*t) for t in range(len(dmp_paths[0]))]
+    path = np.vstack(dmp_paths)
+    return path
+
 # test normal run
 dmp = pydmps.dmp_discrete.DMPs_discrete(n_dmps=2, n_bfs=10,
                                         w=np.zeros((2,10)))
 y_track = np.zeros((dmp.timesteps, dmp.n_dmps))
 dy_track = np.zeros((dmp.timesteps, dmp.n_dmps))
 ddy_track = np.zeros((dmp.timesteps, dmp.n_dmps))
-goals = [[np.cos(theta), np.sin(theta)] for theta in np.linspace(0, 2*np.pi, 20)[:-1]]
-goals = goals[0:1] #just one for now
+goals = [[1.0, 0.015]] #just one for now
+goal = goals[0]
+path = get_straight_path([0,0], goal, dmp.timesteps, dmp.n_dmps, oscillate=True)
+dmp.imitate_path(y_des = path, plot = False)
+
 for goal in goals:
     dmp.goal = goal
     dmp.reset_state()
     for t in range(dmp.timesteps):
         y_track[t], dy_track[t], ddy_track[t] = \
-                dmp.step(external_force=avoid_obstacles(dmp.y, dmp.dy, goal))
+                dmp.step()
 
     plt.figure(1, figsize=(6,6))
     plot_goal, = plt.plot(dmp.goal[0], dmp.goal[1], 'gx', mew=3)
