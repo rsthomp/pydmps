@@ -127,7 +127,7 @@ label = c_t
 
 
 
-model.fit(inpt, label, epochs=100, batch_size=10, verbose=2)
+model.fit(inpt, label, epochs=20, batch_size=10, verbose=2)
 #print(model.evaluate(inpt, label, batch_size=5, verbose=1))
 #exit(0)
 
@@ -135,8 +135,9 @@ y_track = np.zeros((dmp.timesteps, dmp.n_dmps))
 dy_track = np.zeros((dmp.timesteps, dmp.n_dmps))
 ddy_track = np.zeros((dmp.timesteps, dmp.n_dmps))
 
-
-def nn_avoid(y, dy, goal, model):
+""" return a p, the (Cx, Cy) coupling term 
+to avoid an obstacle"""
+def nn_avoid(y, dy, goal, model, postprocess=True):
 	p = np.zeros(2)
 	for obstacle in obstacles:
 		if np.linalg.norm(dy) > 1e-5:
@@ -166,9 +167,36 @@ def nn_avoid(y, dy, goal, model):
 		       
 		        p += pval * gamma
 	#print(p)
-	return p
+        if postprocess:
+	    return postprocess_output(p, y, obstacles[0], goal)
+        return p
+ 
 
+def get_straight_path(start, goal, timesteps, n_dmps, oscillate = False):
+    #constantly make progress to the goal, always move at that angle. 
+    dmp_paths = []
+    for i in range(n_dmps):
+        dmp_paths.append(np.linspace(start[i], goal[i], timesteps))
+    if oscillate:
+        A = .05
+        dmp_paths[1] = [dmp_paths[1][t] + A*np.sin(30*t) for t in range(len(dmp_paths[0]))]
+    path = np.vstack(dmp_paths)
+    return path
+""" postprocessing steps to ensure safe behaviour"""
+def postprocess_output(x, state, obstacle, goal):
+    Cy_original = x[1] #ignore x[0] (the paper told me to do it!!)
+    Cy = Cy_original
+    #exponentially reduce coupling term to 0 on passing the obstacle
+    k = 100
+    if state[0] > obstacle[0]:
+        Cy = Cy_original*np.e**(-k*(obstacle[0]-state[0])**2)
+    #set coupling term to 0 if obstacle is beyond the goal
+    if state[0] > goal[0]:
+        Cy = 0
+    return [0, Cy]
 
+path = get_straight_path([0,0], [1,0.015], dmp.timesteps, dmp.n_dmps, oscillate=True)
+dmp.imitate_path(y_des = path, plot = False)
 
 for goal in goals:
     dmp.goal = goal
@@ -176,7 +204,7 @@ for goal in goals:
     for t in range(dmp.timesteps):
         #print("NN: " + str(nn_avoid(dmp.y, dmp.dy, goal, model)))
         #print("AO: " + str(avoid_obstacles(dmp.y, dmp.dy, goal, t)))
-        y_track[t], dy_track[t], ddy_track[t] = dmp.step(external_force=nn_avoid(dmp.y, dmp.dy, goal, model))
+        y_track[t], dy_track[t], ddy_track[t] = dmp.step(external_force=nn_avoid(dmp.y, dmp.dy, goal, model, postprocess=True))
 
 
 
@@ -186,6 +214,7 @@ for goal in goals:
         plot_obs, = plt.plot(obstacle[0], obstacle[1], 'rx', mew=3)
     plot_path, = plt.plot(y_track[:,0], y_track[:, 1], 'b', lw=2)
     plot_path, = plt.plot(ty_track[:,0], ty_track[:, 1], 'g', lw=2)
+    plot_path, = plt.plot(path[:,0], path[:, 1], 'y', lw=2)
     plt.title('DMP system - obstacle avoidance')
 
 plt.axis('equal')
